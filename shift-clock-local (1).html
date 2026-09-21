@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Shift Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF0F4; --surface:#FFFFFF; --surface-2:#F5F7FA; --ink:#13203A; --ink-2:#4B5A75; --line:#D9E0E8;
+  --go:#0B7F86; --go-ink:#FFFFFF; --go-soft:#D8EFF0;
+  --pause:#9A5B00; --pause-soft:#FBEACB;
+  --danger:#B4232F; --danger-soft:#FADDE0;
+  --ring-track:#DCE3EB; --focus:#2F6FEB; --overlay:rgba(19,32,58,.45);
+  --font-ui:'Instrument Sans',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --font-num:'Big Shoulders Display','Arial Narrow','Helvetica Neue',Impact,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1520; --surface:#152130; --surface-2:#1B2A3C; --ink:#E9EEF4; --ink-2:#A3B1C4; --line:#28394D;
+    --go:#38C3C9; --go-ink:#06282B; --go-soft:#12383C;
+    --pause:#F2B24D; --pause-soft:#3B2C0E;
+    --danger:#FF8790; --danger-soft:#3C1A1E;
+    --ring-track:#26374A; --focus:#8DB4FF; --overlay:rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1520; --surface:#152130; --surface-2:#1B2A3C; --ink:#E9EEF4; --ink-2:#A3B1C4; --line:#28394D;
+  --go:#38C3C9; --go-ink:#06282B; --go-soft:#12383C;
+  --pause:#F2B24D; --pause-soft:#3B2C0E;
+  --danger:#FF8790; --danger-soft:#3C1A1E;
+  --ring-track:#26374A; --focus:#8DB4FF; --overlay:rgba(0,0,0,.6);
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.45 var(--font-ui);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button,input,select{font:inherit;color:inherit}
+h1,h2,h3,p{margin:0}
+.muted{color:var(--ink-2)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+/* layout */
+.app{min-height:100%;display:flex;flex-direction:column}
+.main{flex:1;width:100%;max-width:720px;margin:0 auto;padding:0 16px 104px}
+.main.wide{max-width:1040px}
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0 10px}
+.top h1{font:800 30px/1 var(--font-num);letter-spacing:.01em}
+.sync{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:var(--ink-2)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--go)}
+.dot.busy{background:var(--pause)}
+.dot.off{background:var(--danger)}
+.who{font-weight:600;color:var(--ink)}
+
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;gap:4px;background:var(--surface);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px))}
+.nav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px;background:none;border:0;border-radius:12px;color:var(--ink-2);font-size:12px;font-weight:600;cursor:pointer}
+.nav button[aria-current="page"]{color:var(--go);background:var(--go-soft)}
+.brand{display:none}
+@media (min-width:900px){
+  .app{padding-left:230px}
+  .nav{top:0;right:auto;width:230px;flex-direction:column;justify-content:flex-start;gap:6px;border-top:0;border-right:1px solid var(--line);padding:22px 14px}
+  .nav button{flex:none;flex-direction:row;justify-content:flex-start;gap:12px;min-height:46px;padding:0 14px;font-size:15px}
+  .brand{display:block;font:800 30px/1 var(--font-num);letter-spacing:.01em;padding:0 14px 20px}
+  .main{padding-bottom:48px}
+}
+
+/* cards & bits */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px}
+.card+.card,.stack>*+*{margin-top:14px}
+.center{text-align:center}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;background:var(--go-soft);color:var(--go);font-size:12px;font-weight:700;vertical-align:middle}
+.pill.warn{background:var(--pause-soft);color:var(--pause)}
+.pill.plain{background:var(--surface-2);color:var(--ink-2)}
+.section-title{font-size:17px;font-weight:700;margin:22px 0 10px}
+.empty{padding:22px 8px;text-align:center;color:var(--ink-2)}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:10px 18px;border-radius:14px;border:1.5px solid transparent;background:var(--surface-2);font-weight:600;cursor:pointer;text-align:center}
+.btn.go{background:var(--go);color:var(--go-ink)}
+.btn.stop{background:var(--ink);color:var(--bg)}
+.btn.ghost{background:transparent;border-color:var(--line)}
+.btn.pause{background:var(--pause-soft);color:var(--pause)}
+.btn.danger{background:var(--danger-soft);color:var(--danger)}
+.btn.big{min-height:70px;border-radius:20px;font-size:21px;width:100%}
+.btn.small{min-height:36px;padding:5px 12px;border-radius:10px;font-size:14px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.icon-btn{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);cursor:pointer}
+.actions{display:grid;gap:10px;margin-top:22px}
+
+/* clock face */
+.face-wrap{padding:8px 0 0}
+.clockface{--face:min(300px,76vw);position:relative;width:var(--face);aspect-ratio:1;margin:0 auto}
+.clockface svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+.ring-track{stroke:var(--ring-track)}
+.ring-bar{stroke:var(--go);transition:stroke-dashoffset .4s linear}
+.s-break .ring-bar{stroke:var(--pause)}
+.face-in{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.timer{display:flex;align-items:baseline;justify-content:center;font:800 calc(var(--face)*.22)/1 var(--font-num);letter-spacing:.01em}
+.timer .d{display:inline-block;width:.56em;text-align:center}
+.timer .c{display:inline-block;width:.3em;text-align:center}
+.timer .ss{font-size:.42em;color:var(--ink-2);margin-left:.15em}
+.s-idle .timer .hm{color:var(--ink-2)}
+.face-state{font-weight:700;font-size:16px}
+.s-live .face-state{color:var(--go)}
+.s-break .face-state{color:var(--pause)}
+.face-sub{font-size:14px;color:var(--ink-2)}
+.roster-line{text-align:center;margin-top:14px;font-size:15px;color:var(--ink-2)}
+.notebox{display:grid;gap:6px;margin-top:20px}
+
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.stat .num{display:block;font:800 36px/1 var(--font-num);letter-spacing:.01em}
+.stat .lbl{display:block;margin-top:6px;font-size:14px;color:var(--ink-2)}
+.list-row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.list-row:first-child{border-top:0}
+
+/* week nav */
+.wknav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 14px}
+.wklabel{flex:1;min-width:120px;text-align:center;font-weight:700;font-size:17px}
+.wklabel .pill{margin-left:8px}
+
+/* day rows */
+.day{display:grid;grid-template-columns:76px 1fr auto;gap:12px;padding:13px 0;border-top:1px solid var(--line)}
+.day:first-child{border-top:0}
+.dlabel strong{display:block;font-size:16px}
+.dlabel span{font-size:13px;color:var(--ink-2)}
+.day.today .dlabel strong{color:var(--go)}
+.dbody{display:grid;gap:6px;align-content:start;min-width:0}
+.line{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+.line b{font-weight:600}
+.line .note{flex-basis:100%;color:var(--ink-2);font-size:14px;overflow-wrap:anywhere}
+.rline{color:var(--ink-2);font-size:14px}
+.none{color:var(--ink-2);font-size:14px}
+.dtot{font:700 26px/1.1 var(--font-num);text-align:right;white-space:nowrap}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+
+/* admin */
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.toolbar .grow{flex:1}
+select,input[type=text],input[type=number],input[type=date],input[type=time],input[type=datetime-local]{width:100%;min-height:46px;padding:8px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface-2);font-size:16px}
+.toolbar select{width:auto;min-width:180px}
+.tblwrap{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:15px}
+.tbl th{text-align:left;font-weight:600;color:var(--ink-2);padding:12px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:11px 14px;border-top:1px solid var(--line);vertical-align:middle}
+.tbl tbody tr:first-child td{border-top:0}
+.tbl td.num,.tbl th.num{text-align:right}
+.tbl .note-cell{max-width:260px;overflow-wrap:anywhere;color:var(--ink-2)}
+@media (max-width:760px){
+  .tbl thead{display:none}
+  .tbl,.tbl tbody,.tbl tr,.tbl td{display:block;width:100%}
+  .tbl tr{padding:10px 14px;border-top:1px solid var(--line)}
+  .tbl tbody tr:first-child{border-top:0}
+  .tbl td{display:flex;justify-content:space-between;gap:16px;padding:4px 0;border:0;text-align:right}
+  .tbl td::before{content:attr(data-l);color:var(--ink-2);font-weight:600;text-align:left}
+  .tbl td.act{justify-content:flex-end;padding-top:8px}
+  .tbl td.act::before{content:none}
+  .tbl .note-cell{max-width:none}
+}
+
+/* dialog */
+dialog{border:1px solid var(--line);border-radius:20px;padding:0;background:var(--surface);color:var(--ink);width:min(480px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto}
+dialog::backdrop{background:var(--overlay)}
+.dlg{padding:20px;display:grid;gap:14px}
+.dlg h2{font:800 28px/1 var(--font-num);letter-spacing:.01em}
+.dlg label{display:grid;gap:6px;font-weight:600;font-size:14px}
+.dlg label small{font-weight:400;color:var(--ink-2)}
+.dlg .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dact{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.dact .btn{flex:1}
+.err{color:var(--danger);font-size:14px;font-weight:600;min-height:0}
+.err:empty{display:none}
+textarea.csv{width:100%;min-height:140px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface-2);padding:10px;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;color:inherit}
+@media (max-width:600px){
+  dialog{margin:auto auto 0;width:100%;max-width:100%;border-radius:20px 20px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:30;max-width:min(92vw,460px);padding:12px 18px;border-radius:14px;background:var(--ink);color:var(--bg);font-weight:600;font-size:15px;text-align:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+.toast.error{background:var(--danger);color:#fff}
+@media (min-width:900px){.toast{bottom:28px}}
+
+.blocker{max-width:460px;margin:12vh auto 0;padding:0 20px;text-align:center}
+.blocker h2{font:800 30px/1.1 var(--font-num);margin-bottom:10px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="nav" id="nav" aria-label="Main"></nav>
+  <main class="main" id="main">
+    <header class="top">
+      <h1 id="title">Shift Clock</h1>
+      <div class="sync" aria-live="polite"><span class="who" id="who"></span><span class="dot busy" id="dot"></span><span id="syncTxt">Connecting</span></div>
+    </header>
+    <div id="view"></div>
+  </main>
+</div>
+<dialog id="dlg" aria-modal="true"></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* Local storage engine: keeps everything in this browser on this device. */
+(function(){
+  var KEY='shiftclock:v1', mem={}, listeners=[], store;
+  function load(){ try{ var t=localStorage.getItem(KEY); return t?JSON.parse(t):{}; }catch(e){ return mem; } }
+  function persist(){ try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){ mem=store; } }
+  function clone(x){ return JSON.parse(JSON.stringify(x)); }
+  function colOf(p){ return p.split('/').slice(0,-1).join('/'); }
+  function snap(p){ var d=store[p]; return {id:p.split('/').pop(),exists:d!==undefined,data:function(){return d===undefined?undefined:clone(d);},metadata:{}}; }
+  function notify(){ listeners.slice().forEach(function(f){ f(); }); }
+  function docRef(path){ return {
+    id:path.split('/').pop(), path:path,
+    get:function(){ return Promise.resolve(snap(path)); },
+    set:function(d){ store[path]=clone(d); persist(); notify(); return Promise.resolve(); },
+    update:function(d){ if(!(path in store)) return Promise.reject({code:'invalid_argument'}); store[path]=Object.assign({},store[path],clone(d)); persist(); notify(); return Promise.resolve(); },
+    delete:function(){ delete store[path]; persist(); notify(); return Promise.resolve(); }
+  }; }
+  function collection(path){ return {
+    path:path,
+    doc:function(id){ return docRef(path+'/'+(id||('s'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)))); },
+    onSnapshot:function(cb){
+      var f=function(){ var docs=Object.keys(store).filter(function(k){return colOf(k)===path;}).sort().map(snap); cb({docs:docs,size:docs.length}); };
+      listeners.push(f); setTimeout(f,0);
+      return function(){ listeners=listeners.filter(function(x){return x!==f;}); };
+    }
+  }; }
+  store=load();
+  window.addEventListener('storage',function(e){ if(e.key===KEY){ store=load(); notify(); } });
+  var db={doc:docRef,collection:collection};
+  var user={
+    me:function(){ return Promise.resolve({id:'local',name:'',isOwner:true,canEdit:true}); },
+    profiles:function(ids){ var o={}; [].concat(ids).forEach(function(i){ o[i]={id:i,name:''}; }); return Promise.resolve(o); }
+  };
+  window.__shiftStore={
+    dump:function(){ return JSON.stringify(store); },
+    restore:function(text){
+      var o; try{ o=JSON.parse(text); }catch(e){ return 'That is not valid backup text.'; }
+      if(!o||typeof o!=='object'||Array.isArray(o)) return 'That is not valid backup text.';
+      var keys=Object.keys(o);
+      if(keys.some(function(k){ return !/^(staff|roster)\//.test(k) || typeof o[k]!=='object'; })) return 'That is not a Shift Clock backup.';
+      store=o; persist(); notify(); return '';
+    }
+  };
+  window.claude={use:function(name){ return Promise.resolve(name==='db'?db:name==='user'?user:null); }};
+})();
+</script>
+<script>
+(function(){
+'use strict';
+
+/* ---------- helpers ---------- */
+var $ = function(s){ return document.querySelector(s); };
+var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+var p2 = function(n){ return String(n).padStart(2,'0'); };
+var M = 60000, H = 3600000, DAY = 86400000;
+var sleep = function(ms){ return new Promise(function(r){ setTimeout(r, ms); }); };
+
+function startOfWeek(ms){ var d = new Date(ms); d.setHours(0,0,0,0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
+function addDays(ms, n){ var d = new Date(ms); d.setDate(d.getDate() + n); return d.getTime(); }
+function dayKey(ms){ var d = new Date(ms); return d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate()); }
+function keyToMs(k, t){ var a = k.split('-').map(Number), b = (t || '00:00').split(':').map(Number); return new Date(a[0], a[1]-1, a[2], b[0], b[1], 0, 0).getTime(); }
+function toLocalInput(ms){ var d = new Date(ms); return dayKey(ms) + 'T' + p2(d.getHours()) + ':' + p2(d.getMinutes()); }
+function fromLocalInput(v){ return v ? new Date(v).getTime() : NaN; }
+
+var tFmt = new Intl.DateTimeFormat(undefined, {hour:'numeric', minute:'2-digit'});
+var dFmt = new Intl.DateTimeFormat(undefined, {weekday:'short', day:'numeric', month:'short'});
+var wdFmt = new Intl.DateTimeFormat(undefined, {weekday:'short'});
+var mdFmt = new Intl.DateTimeFormat(undefined, {day:'numeric', month:'short'});
+var dayNum = new Intl.DateTimeFormat(undefined, {day:'numeric'});
+var fmtTime = function(ms){ return tFmt.format(ms); };
+function fmtDur(ms){ var m = Math.round(ms / M), h = Math.floor(m / 60); return h ? h + 'h ' + p2(m % 60) + 'm' : m + 'm'; }
+function rangeLabel(ws){ var we = addDays(ws, 6); var sameMonth = new Date(ws).getMonth() === new Date(we).getMonth(); return sameMonth ? dayNum.format(ws) + ' \u2013 ' + mdFmt.format(we) : mdFmt.format(ws) + ' \u2013 ' + mdFmt.format(we); }
+
+function workedMs(e, now){
+  var end = e.end == null ? now : e.end;
+  var t = end - e.start - (e.breakMs || 0);
+  if (e.breakStart) t -= Math.max(0, end - e.breakStart);
+  return Math.max(0, t);
+}
+function rosterStart(r){ return keyToMs(r.date, r.start); }
+function rosterEnd(r){ var s = rosterStart(r), e = keyToMs(r.date, r.end); return e <= s ? e + DAY : e; }
+function rosterMs(r){ return rosterEnd(r) - rosterStart(r); }
+function rosterText(r){ return fmtTime(rosterStart(r)) + ' \u2013 ' + fmtTime(rosterEnd(r)); }
+
+/* ---------- state ---------- */
+var S = {
+  error: null, ready: false, loadedOwn: false,
+  db: null, user: null, dl: null,
+  uid: null, isAdmin: false,
+  tab: 'clock',
+  entries: {}, staff: {}, roster: [], names: {},
+  week: startOfWeek(Date.now()), aweek: startOfWeek(Date.now()), aperson: null,
+  draftNote: '', noteEdited: false,
+  pending: 0, online: navigator.onLine !== false
+};
+var unsubs = {};
+var chain = Promise.resolve();
+
+function nameOf(uid){
+  if (S.names[uid]) return S.names[uid];
+  return uid === S.uid ? 'You' : 'Someone';
+}
+function peopleIds(){
+  var ids = Object.keys(S.staff);
+  if (S.uid && ids.indexOf(S.uid) < 0) ids.unshift(S.uid);
+  return ids;
+}
+
+function entriesIn(uid, from, to){
+  return (S.entries[uid] || []).filter(function(e){ return e.start >= from && e.start < to; }).sort(function(a,b){ return a.start - b.start; });
+}
+function rosterIn(uid, from, to){
+  return S.roster.filter(function(r){ return r.uid === uid && keyToMs(r.date) >= from && keyToMs(r.date) < to; })
+    .sort(function(a,b){ return rosterStart(a) - rosterStart(b); });
+}
+function myOpen(){
+  var list = (S.entries[S.uid] || []).filter(function(e){ return e.end == null; });
+  list.sort(function(a,b){ return b.start - a.start; });
+  return list[0] || null;
+}
+function sumWorked(list, now){ return list.reduce(function(a,e){ return a + workedMs(e, now); }, 0); }
+function sumRostered(list){ return list.reduce(function(a,r){ return a + rosterMs(r); }, 0); }
+
+/* ---------- writes (serialised, one at a time) ---------- */
+function shiftsPath(uid){ return 'staff/' + uid + '/shifts'; }
+function shiftRef(uid, id){ return S.db.collection(shiftsPath(uid)).doc(id); }
+
+function errText(e){
+  var c = e && e.code;
+  if (c === 'invalid_argument') return "That change wasn't allowed. Check that you have permission.";
+  if (c === 'quota_exceeded') return 'Storage is full. Delete some old entries and try again.';
+  if (c === 'resource_exhausted') return 'Too many changes at once. Wait a moment and try again.';
+  return 'Could not save. Check your connection and try again.';
+}
+function save(fn, okMsg){
+  S.pending++; syncUI();
+  var run = chain.then(function(){
+    return Promise.resolve().then(fn).catch(function(e){
+      if (e && e.code === 'unavailable') return sleep(600 + Math.random()*600).then(fn);
+      throw e;
+    });
+  });
+  chain = run.catch(function(){});
+  return run.then(function(){ if (okMsg) toast(okMsg); return true; },
+    function(e){ console.error(e); toast(errText(e), 'error'); return false; })
+    .then(function(ok){ S.pending--; syncUI(); return ok; });
+}
+
+/* ---------- clock actions ---------- */
+function clockIn(){
+  if (!S.loadedOwn) return;
+  if (myOpen()) { toast('You are already clocked in.'); return; }
+  var now = Date.now();
+  var ref = S.db.collection(shiftsPath(S.uid)).doc();
+  S.noteEdited = false; S.draftNote = '';
+  save(function(){ return ref.set({start: now, end: null, breakMs: 0, breakStart: null, note: '', source: 'clock', edited: false, createdAt: now, updatedAt: now}); },
+    'Clocked in at ' + fmtTime(now));
+}
+function clockOut(){
+  var o = myOpen(); if (!o) return;
+  var now = Date.now();
+  var breakMs = (o.breakMs || 0) + (o.breakStart ? now - o.breakStart : 0);
+  var note = S.noteEdited ? S.draftNote.trim() : (o.note || '');
+  var done = Object.assign({}, o, {end: now, breakMs: breakMs, breakStart: null});
+  S.noteEdited = false; S.draftNote = '';
+  save(function(){ return shiftRef(S.uid, o.id).update({end: now, breakMs: breakMs, breakStart: null, note: note, updatedAt: now}); },
+    'Clocked out at ' + fmtTime(now) + '. ' + fmtDur(workedMs(done, now)) + ' worked.');
+}
+function toggleBreak(){
+  var o = myOpen(); if (!o) return;
+  var now = Date.now();
+  if (o.breakStart) {
+    var total = (o.breakMs || 0) + (now - o.breakStart);
+    save(function(){ return shiftRef(S.uid, o.id).update({breakMs: total, breakStart: null, updatedAt: now}); }, 'Break ended.');
+  } else {
+    save(function(){ return shiftRef(S.uid, o.id).update({breakStart: now, updatedAt: now}); }, 'Break started.');
+  }
+}
+function saveNote(value){
+  var o = myOpen(); if (!o) return;
+  var note = value.trim();
+  S.noteEdited = false; S.draftNote = '';
+  if (note === (o.note || '')) return;
+  save(function(){ return shiftRef(S.uid, o.id).update({note: note, updatedAt: Date.now()}); });
+}
+
+/* ---------- subscriptions ---------- */
+function onSubErr(e){
+  console.error(e);
+  if (e && e.code === 'revoked') { S.error = 'revoked'; }
+  scheduleRender();
+}
+function watchShifts(uid){
+  if (unsubs[uid]) return;
+  unsubs[uid] = S.db.collection(shiftsPath(uid)).onSnapshot(function(snap){
+    S.entries[uid] = snap.docs.map(function(d){ return Object.assign({id: d.id, uid: uid}, d.data()); });
+    if (uid === S.uid) S.loadedOwn = true;
+    scheduleRender();
+  }, onSubErr);
+}
+function watchRoster(){
+  S.db.collection('roster').onSnapshot(function(snap){
+    S.roster = snap.docs.map(function(d){ return Object.assign({id: d.id}, d.data()); });
+    refreshNames(); scheduleRender();
+  }, onSubErr);
+}
+function watchStaff(){
+  S.db.collection('staff').onSnapshot(function(snap){
+    var st = {};
+    snap.docs.forEach(function(d){ st[d.id] = d.data(); watchShifts(d.id); });
+    S.staff = st;
+    refreshNames(); scheduleRender();
+  }, onSubErr);
+}
+function refreshNames(){
+  var ids = {}; ids[S.uid] = 1;
+  Object.keys(S.staff).forEach(function(k){ ids[k] = 1; });
+  S.roster.forEach(function(r){ if (r.uid) ids[r.uid] = 1; });
+  var list = Object.keys(ids);
+  return S.user.profiles(list).then(function(ps){
+    var changed = false;
+    list.forEach(function(id){
+      var n = (ps[id] && ps[id].name) || '';
+      if (S.names[id] !== n) { S.names[id] = n; changed = true; }
+    });
+    if (changed) scheduleRender();
+  }, function(){});
+}
+
+/* ---------- toast & sync ---------- */
+var toastTimer;
+function toast(msg, kind){
+  var t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (kind === 'error' ? ' error' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(function(){ t.className = 'toast'; }, kind === 'error' ? 5000 : 2600);
+}
+function syncUI(){
+  var dot = $('#dot'), txt = $('#syncTxt');
+  if (!S.online) { dot.className = 'dot off'; txt.textContent = 'Offline'; }
+  else if (S.pending > 0) { dot.className = 'dot busy'; txt.textContent = 'Saving'; }
+  else if (!S.loadedOwn) { dot.className = 'dot busy'; txt.textContent = 'Connecting'; }
+  else { dot.className = 'dot'; txt.textContent = window.__shiftStore ? 'Saved on this device' : 'Synced'; }
+}
+window.addEventListener('online', function(){ S.online = true; syncUI(); });
+window.addEventListener('offline', function(){ S.online = false; syncUI(); });
+
+/* ---------- icons ---------- */
+function svg(inner){ return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>'; }
+var ICON = {
+  clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  sheet: svg('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>'),
+  roster: svg('<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'),
+  admin: svg('<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>'),
+  prev: svg('<path d="M15 5l-7 7 7 7"/>'),
+  next: svg('<path d="M9 5l7 7-7 7"/>')
+};
+var TABS = [['clock','Clock'],['sheet','Timesheet'],['roster','Roster'],['admin','Admin']];
+
+/* ---------- views ---------- */
+function digits(ms){
+  var s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  function part(str){ return str.split('').map(function(ch){ return ch === ':' ? '<span class="c">:</span>' : '<span class="d">' + ch + '</span>'; }).join(''); }
+  return '<span class="hm">' + part(p2(h) + ':' + p2(m)) + '</span><span class="ss">' + part(':' + p2(sec)) + '</span>';
+}
+var RING_C = 2 * Math.PI * 116;
+
+function weekNav(key){
+  var ws = S[key], cur = ws === startOfWeek(Date.now());
+  return '<div class="wknav">' +
+    '<button class="icon-btn" data-a="wk" data-k="' + key + '" data-d="-1" aria-label="Previous week">' + ICON.prev + '</button>' +
+    '<div class="wklabel">' + esc(rangeLabel(ws)) + (cur ? '<span class="pill">This week</span>' : '') + '</div>' +
+    '<button class="icon-btn" data-a="wk" data-k="' + key + '" data-d="1" aria-label="Next week">' + ICON.next + '</button>' +
+    (cur ? '' : '<button class="btn small" data-a="wk" data-k="' + key + '" data-d="0">Back to this week</button>') + '</div>';
+}
+
+function entryLine(e, now){
+  var end = e.end == null ? '<span class="pill">On shift</span>' : fmtTime(e.end);
+  var brk = (e.breakMs || 0) + (e.breakStart ? now - e.breakStart : 0);
+  return '<div class="line"><b>' + fmtTime(e.start) + ' to ' + end + '</b>' +
+    (brk >= M ? '<span class="muted">' + fmtDur(brk) + ' break</span>' : '') +
+    (e.edited ? '<span class="pill plain">Edited</span>' : '') +
+    (e.note ? '<span class="note">' + esc(e.note) + '</span>' : '') + '</div>';
+}
+
+function viewClock(){
+  if (!S.loadedOwn) return '<section class="card center"><p class="muted">Loading your shifts\u2026</p></section>';
+  var now = Date.now(), o = myOpen(), onBreak = !!(o && o.breakStart);
+  var st = !o ? 'idle' : (onBreak ? 'break' : 'live');
+  var todayKey = dayKey(now), ws = startOfWeek(now);
+  var todayRoster = rosterIn(S.uid, keyToMs(todayKey), keyToMs(todayKey) + 36 * H).filter(function(r){ return r.date === todayKey; });
+  var todayEntries = entriesIn(S.uid, keyToMs(todayKey), addDays(keyToMs(todayKey), 1));
+  var weekEntries = entriesIn(S.uid, ws, addDays(ws, 7));
+  var weekRostered = sumRostered(rosterIn(S.uid, ws, addDays(ws, 7)));
+
+  var label = st === 'idle' ? 'Off the clock' : st === 'live' ? 'On shift' : 'On break';
+  var sub = st === 'idle' ? lastOut() : st === 'live' ? 'Since ' + fmtTime(o.start) : 'Break since ' + fmtTime(o.breakStart);
+  var target = todayRoster.length ? sumRostered(todayRoster) : 8 * H;
+  var frac = o ? Math.min(1, workedMs(o, now) / target) : 0;
+
+  var actions = '';
+  if (st === 'idle') actions = '<button class="btn go big" data-a="in">Clock in</button>';
+  if (st === 'live') actions = '<button class="btn stop big" data-a="out">Clock out</button><button class="btn pause" data-a="break">Start break</button>';
+  if (st === 'break') actions = '<button class="btn go big" data-a="break">End break</button><button class="btn ghost" data-a="out">Clock out</button>';
+
+  var noteVal = S.noteEdited ? S.draftNote : (o ? (o.note || '') : '');
+  var note = o ? '<div class="notebox"><label for="note" class="muted" style="font-weight:600;font-size:14px">Note for this shift</label>' +
+    '<input type="text" id="note" maxlength="200" placeholder="Optional" value="' + esc(noteVal) + '" autocomplete="off"></div>' : '';
+
+  var list = todayEntries.length ? '<div class="card" style="margin-top:14px"><strong>Today</strong><div style="margin-top:6px">' +
+    todayEntries.map(function(e){ return '<div class="list-row"><div>' + entryLine(e, now) + '</div><b id="row-' + esc(e.id) + '">' + fmtDur(workedMs(e, now)) + '</b></div>'; }).join('') + '</div></div>' : '';
+
+  return '<section class="face-wrap"><div class="clockface s-' + st + '">' +
+    '<svg viewBox="0 0 260 260" aria-hidden="true"><circle class="ring-track" cx="130" cy="130" r="116" fill="none" stroke-width="14"/>' +
+    '<circle class="ring-bar" id="ring" cx="130" cy="130" r="116" fill="none" stroke-width="14" stroke-linecap="round" stroke-dasharray="' + RING_C.toFixed(2) + '" stroke-dashoffset="' + (RING_C * (1 - frac)).toFixed(2) + '"/></svg>' +
+    '<div class="face-in"><div class="timer" id="timer" role="timer" aria-label="Time worked this shift">' + digits(o ? workedMs(o, now) : 0) + '</div>' +
+    '<div class="face-state">' + label + '</div><div class="face-sub">' + esc(sub) + '</div></div></div>' +
+    '<p class="roster-line">' + (todayRoster.length ? 'Rostered today ' + esc(todayRoster.map(rosterText).join(', ')) : 'No shift rostered today') + '</p>' +
+    '<div class="actions">' + actions + '</div>' + note +
+    '<div class="stats"><div class="stat"><span class="num" id="todayTotal">' + fmtDur(sumWorked(todayEntries, now)) + '</span><span class="lbl">Worked today</span></div>' +
+    '<div class="stat"><span class="num" id="weekTotal">' + fmtDur(sumWorked(weekEntries, now)) + '</span><span class="lbl">This week' + (weekRostered ? ' of ' + fmtDur(weekRostered) + ' rostered' : '') + '</span></div></div>' +
+    list + '</section>';
+}
+function lastOut(){
+  var done = (S.entries[S.uid] || []).filter(function(e){ return e.end != null; }).sort(function(a,b){ return b.end - a.end; })[0];
+  if (!done) return 'Tap below to start your first shift';
+  return 'Last clock out ' + fmtTime(done.end) + (dayKey(done.end) === dayKey(Date.now()) ? ' today' : ' on ' + dFmt.format(done.end));
+}
+
+function viewSheet(){
+  var now = Date.now(), ws = S.week, we = addDays(ws, 7);
+  var es = entriesIn(S.uid, ws, we), rs = rosterIn(S.uid, ws, we);
+  var days = '';
+  for (var i = 0; i < 7; i++){
+    var d = addDays(ws, i), k = dayKey(d);
+    var de = es.filter(function(e){ return dayKey(e.start) === k; });
+    var dr = rs.filter(function(r){ return r.date === k; });
+    days += '<div class="day' + (k === dayKey(now) ? ' today' : '') + '">' +
+      '<div class="dlabel"><strong>' + wdFmt.format(d) + '</strong><span>' + mdFmt.format(d) + '</span></div>' +
+      '<div class="dbody">' + de.map(function(e){ return entryLine(e, now); }).join('') +
+      dr.map(function(r){ return '<div class="rline">Rostered ' + esc(rosterText(r)) + '</div>'; }).join('') +
+      (!de.length && !dr.length ? '<div class="none">Nothing recorded</div>' : '') + '</div>' +
+      '<div class="dtot">' + (de.length ? fmtDur(sumWorked(de, now)) : '') + '</div></div>';
+  }
+  return weekNav('week') +
+    '<div class="summary"><div class="stat"><span class="num">' + fmtDur(sumWorked(es, now)) + '</span><span class="lbl">Worked</span></div>' +
+    '<div class="stat"><span class="num">' + fmtDur(sumRostered(rs)) + '</span><span class="lbl">Rostered</span></div></div>' +
+    '<div class="card">' + days + '</div>' +
+    '<p class="muted" style="margin-top:12px;font-size:14px">Missed a clock out or need a correction? An admin can fix it from the Admin tab.</p>';
+}
+
+function viewRoster(){
+  var ws = S.week, we = addDays(ws, 7), now = Date.now();
+  var all = S.roster.filter(function(r){ var t = keyToMs(r.date); return t >= ws && t < we; });
+  var multi = Object.keys(all.reduce(function(a,r){ a[r.uid] = 1; return a; }, {})).length > 1;
+  var mine = rosterIn(S.uid, ws, we);
+  var days = '';
+  for (var i = 0; i < 7; i++){
+    var d = addDays(ws, i), k = dayKey(d);
+    var list = all.filter(function(r){ return r.date === k; }).sort(function(a,b){ return rosterStart(a) - rosterStart(b); });
+    days += '<div class="day' + (k === dayKey(now) ? ' today' : '') + '">' +
+      '<div class="dlabel"><strong>' + wdFmt.format(d) + '</strong><span>' + mdFmt.format(d) + '</span></div>' +
+      '<div class="dbody">' + (list.length ? list.map(function(r){
+        var me = r.uid === S.uid;
+        return '<div class="line"><b>' + esc(rosterText(r)) + '</b>' + (multi || !me ? '<span class="' + (me ? '' : 'muted') + '">' + esc(me ? 'You' : nameOf(r.uid)) + '</span>' : '') +
+          (r.note ? '<span class="note">' + esc(r.note) + '</span>' : '') + '</div>';
+      }).join('') : '<div class="none">No shifts</div>') + '</div><div></div></div>';
+  }
+  return weekNav('week') +
+    '<div class="summary"><div class="stat"><span class="num">' + fmtDur(sumRostered(mine)) + '</span><span class="lbl">Your rostered hours</span></div>' +
+    '<div class="stat"><span class="num">' + mine.length + '</span><span class="lbl">Your shifts this week</span></div></div>' +
+    '<div class="card">' + days + '</div>' +
+    (S.isAdmin ? '<p class="muted" style="margin-top:12px;font-size:14px">Add or change rostered shifts from the Admin tab.</p>' : '');
+}
+
+function viewAdmin(){
+  if (!S.isAdmin) return '<section class="card center"><p class="muted">The admin panel is only available to the owner and editors of this app.</p></section>';
+  var now = Date.now(), uid = S.aperson || S.uid, ws = S.aweek, we = addDays(ws, 7);
+  var es = entriesIn(uid, ws, we), rs = rosterIn(uid, ws, we);
+  var people = peopleIds();
+  var picker = people.length > 1
+    ? '<select id="person" aria-label="Person">' + people.map(function(id){ return '<option value="' + esc(id) + '"' + (id === uid ? ' selected' : '') + '>' + esc(nameOf(id)) + (id === S.uid ? ' (you)' : '') + '</option>'; }).join('') + '</select>'
+    : '<strong>' + esc(nameOf(uid)) + '</strong>';
+
+  var entryRows = es.map(function(e){
+    var brk = (e.breakMs || 0) + (e.breakStart ? now - e.breakStart : 0);
+    return '<tr>' +
+      '<td data-l="Date">' + esc(dFmt.format(e.start)) + '</td>' +
+      '<td data-l="Start">' + fmtTime(e.start) + '</td>' +
+      '<td data-l="End">' + (e.end == null ? '<span class="pill">On shift</span>' : fmtTime(e.end)) + '</td>' +
+      '<td data-l="Break">' + (brk >= M ? fmtDur(brk) : 'None') + '</td>' +
+      '<td data-l="Hours" class="num"><b>' + fmtDur(workedMs(e, now)) + '</b></td>' +
+      '<td data-l="Note" class="note-cell">' + esc(e.note || '') + (e.edited ? ' <span class="pill plain">Edited</span>' : '') + '</td>' +
+      '<td class="act"><button class="btn small" data-a="edit-entry" data-uid="' + esc(uid) + '" data-id="' + esc(e.id) + '">Edit</button></td></tr>';
+  }).join('');
+  var rosterRows = rs.map(function(r){
+    return '<tr><td data-l="Date">' + esc(dFmt.format(keyToMs(r.date))) + '</td>' +
+      '<td data-l="Time">' + esc(rosterText(r)) + '</td>' +
+      '<td data-l="Hours" class="num"><b>' + fmtDur(rosterMs(r)) + '</b></td>' +
+      '<td data-l="Note" class="note-cell">' + esc(r.note || '') + '</td>' +
+      '<td class="act"><button class="btn small" data-a="edit-shift" data-id="' + esc(r.id) + '">Edit</button></td></tr>';
+  }).join('');
+
+  return '<div class="toolbar">' + picker + '<span class="grow"></span>' +
+    '<button class="btn go small" data-a="add-entry">Add entry</button>' +
+    '<button class="btn small" data-a="add-shift">Add rostered shift</button>' +
+    '<button class="btn small ghost" data-a="export">Export CSV</button>' +
+    (window.__shiftStore ? '<button class="btn small ghost" data-a="backup">Backup</button>' : '') + '</div>' +
+    weekNav('aweek') +
+    '<div class="summary"><div class="stat"><span class="num">' + fmtDur(sumWorked(es, now)) + '</span><span class="lbl">Worked this week</span></div>' +
+    '<div class="stat"><span class="num">' + fmtDur(sumRostered(rs)) + '</span><span class="lbl">Rostered this week</span></div></div>' +
+    '<h2 class="section-title">Timesheet entries</h2>' +
+    (es.length ? '<div class="tblwrap"><table class="tbl"><thead><tr><th>Date</th><th>Start</th><th>End</th><th>Break</th><th class="num">Hours</th><th>Note</th><th></th></tr></thead><tbody>' + entryRows + '</tbody></table></div>'
+      : '<div class="card empty">No entries this week. Use Add entry to record a missed shift.</div>') +
+    '<h2 class="section-title">Rostered shifts</h2>' +
+    (rs.length ? '<div class="tblwrap"><table class="tbl"><thead><tr><th>Date</th><th>Time</th><th class="num">Hours</th><th>Note</th><th></th></tr></thead><tbody>' + rosterRows + '</tbody></table></div>'
+      : '<div class="card empty">Nothing rostered this week. Use Add rostered shift to plan one.</div>');
+}
+
+/* ---------- render ---------- */
+var raf = 0;
+function scheduleRender(){ if (raf) return; raf = requestAnimationFrame(function(){ raf = 0; render(); }); }
+
+function render(){
+  var view = $('#view'), nav = $('#nav');
+  syncUI();
+  if (S.error) {
+    var msgs = {
+      nocloud: ['Open this from its Claude link', 'This app stores your shifts in Claude, so it only works when opened from the link Claude gave you while you are signed in.'],
+      noid: ['Sign in to continue', 'Shift Clock could not work out who you are. Sign in to Claude and reload this page.'],
+      revoked: ['Access changed', 'Your access to this app changed while it was open. Reload the page to continue.']
+    };
+    var m = msgs[S.error] || msgs.nocloud;
+    nav.innerHTML = ''; nav.style.display = 'none';
+    view.innerHTML = '<div class="blocker"><h2>' + m[0] + '</h2><p class="muted">' + m[1] + '</p></div>';
+    return;
+  }
+  if (!S.ready) { view.innerHTML = '<section class="card center" style="margin-top:20px"><p class="muted">Getting things ready\u2026</p></section>'; return; }
+
+  var tabs = TABS.filter(function(t){ return t[0] !== 'admin' || S.isAdmin; });
+  if (!tabs.some(function(t){ return t[0] === S.tab; })) S.tab = 'clock';
+  nav.style.display = '';
+  nav.innerHTML = '<div class="brand">Shift Clock</div>' + tabs.map(function(t){
+    return '<button data-a="tab" data-t="' + t[0] + '"' + (S.tab === t[0] ? ' aria-current="page"' : '') + '>' + ICON[t[0]] + '<span>' + t[1] + '</span></button>';
+  }).join('');
+  $('#title').textContent = TABS.filter(function(t){ return t[0] === S.tab; })[0][1];
+  $('#main').className = 'main' + (S.tab === 'admin' ? ' wide' : '');
+  $('#who').textContent = S.names[S.uid] || '';
+
+  var a = document.activeElement, fid = null, ss = 0, se = 0;
+  if (a && view.contains(a) && a.id) { fid = a.id; try { ss = a.selectionStart; se = a.selectionEnd; } catch (x) {} }
+  view.innerHTML = ({clock: viewClock, sheet: viewSheet, roster: viewRoster, admin: viewAdmin})[S.tab]();
+  if (fid) { var el = document.getElementById(fid); if (el) { el.focus({preventScroll: true}); try { el.setSelectionRange(ss, se); } catch (x) {} } }
+  tick();
+}
+
+function tick(){
+  if (!S.ready || S.tab !== 'clock' || !S.loadedOwn) return;
+  var t = $('#timer'); if (!t) return;
+  var now = Date.now(), o = myOpen();
+  t.innerHTML = digits(o ? workedMs(o, now) : 0);
+  var ring = $('#ring');
+  if (ring) {
+    var k = dayKey(now), tr = rosterIn(S.uid, keyToMs(k), keyToMs(k) + 36 * H).filter(function(r){ return r.date === k; });
+    var target = tr.length ? sumRostered(tr) : 8 * H;
+    ring.setAttribute('stroke-dashoffset', (RING_C * (1 - (o ? Math.min(1, workedMs(o, now) / target) : 0))).toFixed(2));
+  }
+  var k2 = dayKey(now), ws = startOfWeek(now);
+  var td = $('#todayTotal'), wk = $('#weekTotal');
+  if (td) td.textContent = fmtDur(sumWorked(entriesIn(S.uid, keyToMs(k2), addDays(keyToMs(k2), 1)), now));
+  if (wk) wk.textContent = fmtDur(sumWorked(entriesIn(S.uid, ws, addDays(ws, 7)), now));
+  if (o) { var row = document.getElementById('row-' + o.id); if (row) row.textContent = fmtDur(workedMs(o, now)); }
+}
+
+/* ---------- dialogs ---------- */
+var dlg = $('#dlg');
+function openDialog(html, onSubmit){
+  dlg.innerHTML = '<form class="dlg" novalidate>' + html + '</form>';
+  dlg._submit = onSubmit;
+  if (!dlg.open) dlg.showModal();
+  var first = dlg.querySelector('input,select'); if (first && window.matchMedia('(min-width:601px)').matches) first.focus();
+}
+function closeDialog(){ if (dlg.open) dlg.close(); }
+dlg.addEventListener('submit', function(e){ e.preventDefault(); if (dlg._submit) dlg._submit(new FormData(e.target)); });
+dlg.addEventListener('click', function(e){ if (e.target === dlg) closeDialog(); });
+function setErr(msg){ var el = $('#derr'); if (el) el.textContent = msg || ''; }
+function personOptions(sel){
+  return peopleIds().map(function(id){ return '<option value="' + esc(id) + '"' + (id === sel ? ' selected' : '') + '>' + esc(nameOf(id)) + (id === S.uid ? ' (you)' : '') + '</option>'; }).join('');
+}
+
+function entryDialog(uid, id){
+  var e = id ? (S.entries[uid] || []).filter(function(x){ return x.id === id; })[0] : null;
+  if (id && !e) return;
+  var now = Date.now();
+  var base = (now >= S.aweek && now < addDays(S.aweek, 7)) ? dayKey(now) : dayKey(S.aweek);
+  var startV = e ? e.start : keyToMs(base, '09:00'), endV = e ? e.end : keyToMs(base, '17:00');
+  var brk = e ? Math.round(((e.breakMs || 0) + (e.breakStart ? now - e.breakStart : 0)) / M) : 0;
+  openDialog(
+    '<h2>' + (e ? 'Edit entry' : 'Add entry') + '</h2><p class="muted">' + esc(nameOf(uid)) + '</p>' +
+    '<label>Start<input type="datetime-local" name="start" value="' + toLocalInput(startV) + '" required></label>' +
+    '<label>End<input type="datetime-local" name="end" value="' + (endV == null ? '' : toLocalInput(endV)) + '"><small>Leave empty if the shift is still running.</small></label>' +
+    '<label>Break in minutes<input type="number" name="brk" min="0" step="1" inputmode="numeric" value="' + brk + '"></label>' +
+    '<label>Note<input type="text" name="note" maxlength="200" value="' + esc(e ? e.note || '' : '') + '"></label>' +
+    '<p class="err" id="derr" role="alert"></p>' +
+    '<div class="dact"><button type="button" class="btn ghost" data-a="close">Cancel</button><button class="btn go">' + (e ? 'Save changes' : 'Add entry') + '</button></div>' +
+    (e ? '<button type="button" class="btn danger" data-a="del-entry" data-uid="' + esc(uid) + '" data-id="' + esc(id) + '">Delete entry</button>' : ''),
+    function(fd){
+      var start = fromLocalInput(fd.get('start')), endRaw = fd.get('end'), end = endRaw ? fromLocalInput(endRaw) : null;
+      var mins = Number(fd.get('brk') || 0), note = String(fd.get('note') || '').trim();
+      if (isNaN(start)) return setErr('Enter a start date and time.');
+      if (end !== null && isNaN(end)) return setErr('Enter a valid end date and time.');
+      if (end !== null && end <= start) return setErr('The end must be after the start.');
+      if (end !== null && end - start > DAY) return setErr('That shift is longer than 24 hours. Check the dates and AM/PM.');
+      if (!(mins >= 0)) return setErr('Break must be 0 or more minutes.');
+      if (end !== null && mins * M > end - start) return setErr('The break is longer than the shift.');
+      var t = Date.now();
+      var fields = {start: start, end: end, breakMs: Math.round(mins) * M, note: note, edited: true, editedBy: S.uid, updatedAt: t};
+      closeDialog();
+      if (e) {
+        fields.breakStart = end === null ? (e.breakStart || null) : null;
+        save(function(){ return shiftRef(uid, id).update(fields); }, 'Entry updated.');
+      } else {
+        fields.breakStart = null; fields.source = 'admin'; fields.createdAt = t;
+        var ref = S.db.collection(shiftsPath(uid)).doc();
+        save(function(){ return ref.set(fields); }, 'Entry added.');
+      }
+    });
+}
+
+function shiftDialog(id){
+  var r = id ? S.roster.filter(function(x){ return x.id === id; })[0] : null;
+  if (id && !r) return;
+  var uid = r ? r.uid : (S.aperson || S.uid);
+  var now = Date.now();
+  var day = r ? r.date : dayKey((now >= S.aweek && now < addDays(S.aweek, 7)) ? now : S.aweek);
+  openDialog(
+    '<h2>' + (r ? 'Edit rostered shift' : 'Add rostered shift') + '</h2>' +
+    '<label>Person<select name="uid">' + personOptions(uid) + '</select></label>' +
+    '<label>Date<input type="date" name="date" value="' + day + '" required></label>' +
+    '<div class="row2"><label>Start<input type="time" name="start" value="' + (r ? r.start : '09:00') + '" required></label>' +
+    '<label>End<input type="time" name="end" value="' + (r ? r.end : '17:00') + '" required></label></div>' +
+    '<label>Note<input type="text" name="note" maxlength="200" value="' + esc(r ? r.note || '' : '') + '"></label>' +
+    '<p class="err" id="derr" role="alert"></p>' +
+    '<div class="dact"><button type="button" class="btn ghost" data-a="close">Cancel</button><button class="btn go">' + (r ? 'Save changes' : 'Add shift') + '</button></div>' +
+    (r ? '<button type="button" class="btn danger" data-a="del-shift" data-id="' + esc(id) + '">Delete shift</button>' : ''),
+    function(fd){
+      var date = String(fd.get('date') || ''), st = String(fd.get('start') || ''), en = String(fd.get('end') || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return setErr('Enter a date.');
+      if (!st || !en) return setErr('Enter a start and end time.');
+      if (st === en) return setErr('The start and end times are the same.');
+      var doc = {uid: String(fd.get('uid')), date: date, start: st, end: en, note: String(fd.get('note') || '').trim(), createdBy: r ? (r.createdBy || S.uid) : S.uid, updatedAt: Date.now()};
+      closeDialog();
+      var ref = r ? S.db.collection('roster').doc(id) : S.db.collection('roster').doc();
+      save(function(){ return ref.set(doc); }, r ? 'Shift updated.' : 'Shift added.');
+    });
+}
+
+function csvCell(v){
+  var s = String(v == null ? '' : v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function buildCsv(fromKey, toKey, who){
+  var from = keyToMs(fromKey), to = addDays(keyToMs(toKey), 1), now = Date.now();
+  var ids = who === 'all' ? peopleIds() : [who], rows = [];
+  ids.forEach(function(id){
+    entriesIn(id, from, to).forEach(function(e){
+      var d = new Date(e.start), brk = (e.breakMs || 0) + (e.breakStart ? now - e.breakStart : 0);
+      rows.push([nameOf(id), dayKey(e.start), p2(d.getHours()) + ':' + p2(d.getMinutes()),
+        e.end == null ? '' : p2(new Date(e.end).getHours()) + ':' + p2(new Date(e.end).getMinutes()),
+        Math.round(brk / M), e.end == null ? '' : (workedMs(e, now) / H).toFixed(2), e.note || '', e.edited ? 'yes' : ''].map(csvCell).join(','));
+    });
+  });
+  return {text: ['Person,Date,Start,End,Break (min),Hours,Note,Edited'].concat(rows).join('\r\n'), count: rows.length};
+}
+function exportDialog(){
+  var ws = S.aweek;
+  openDialog(
+    '<h2>Export CSV</h2><p class="muted">Opens in Excel, Numbers and Google Sheets.</p>' +
+    '<div class="row2"><label>From<input type="date" name="from" value="' + dayKey(ws) + '" required></label><label>To<input type="date" name="to" value="' + dayKey(addDays(ws, 6)) + '" required></label></div>' +
+    '<label>People<select name="who"><option value="all">Everyone</option>' + personOptions(S.aperson || S.uid) + '</select></label>' +
+    '<p class="err" id="derr" role="alert"></p><div id="csvOut"></div>' +
+    '<div class="dact"><button type="button" class="btn ghost" data-a="close">Close</button><button class="btn go">' + (S.dl ? 'Download CSV' : 'Show CSV') + '</button></div>',
+    function(fd){
+      var from = String(fd.get('from') || ''), to = String(fd.get('to') || '');
+      if (!from || !to) return setErr('Choose a start and end date.');
+      if (to < from) return setErr('The end date must be on or after the start date.');
+      var out = buildCsv(from, to, String(fd.get('who')));
+      if (!out.count) return setErr('No entries in that range.');
+      setErr('');
+      var file = 'timesheet-' + from + '-to-' + to + '.csv';
+      if (S.dl) {
+        S.dl.save({filename: file, data: '\uFEFF' + out.text}).then(function(){ closeDialog(); toast('CSV saved.'); },
+          function(e){ if (e && e.code === 'declined') return; setErr('Could not save the file here. Try again.'); });
+      } else {
+        $('#csvOut').innerHTML = '<label>Copy this into a spreadsheet<textarea class="csv" readonly></textarea></label><button type="button" class="btn small" data-a="copy-ta">Copy CSV</button>';
+        var ta = $('#csvOut textarea'); ta.value = out.text; ta.focus(); ta.select();
+      }
+    });
+}
+
+
+var restoreArmed = false;
+function backupDialog(){
+  restoreArmed = false;
+  openDialog(
+    '<h2>Backup and restore</h2><p class="muted">Your data lives only in this browser on this device. Copy the backup text to keep it safe or to move it to another device.</p>' +
+    '<label>Backup text<textarea class="csv" id="bk" name="bk" spellcheck="false"></textarea></label>' +
+    '<p class="err" id="derr" role="alert"></p>' +
+    '<div class="dact"><button type="button" class="btn ghost" data-a="copy-ta">Copy backup</button><button class="btn go">Restore from this text</button></div>' +
+    '<button type="button" class="btn ghost" data-a="close">Close</button>',
+    function(fd){
+      if (!restoreArmed) { restoreArmed = true; return setErr('This replaces everything on this device. Press Restore again to confirm.'); }
+      var msg = window.__shiftStore.restore(String(fd.get('bk') || ''));
+      if (msg) { restoreArmed = false; return setErr(msg); }
+      closeDialog(); toast('Backup restored.');
+    });
+  $('#bk').value = window.__shiftStore.dump();
+}
+function copyTa(){
+  var ta = dlg.querySelector('textarea'); if (!ta) return;
+  ta.focus(); ta.select();
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch (x) {}
+  if (!ok && navigator.clipboard) { navigator.clipboard.writeText(ta.value).then(function(){ toast('Copied.'); }, function(){ toast('Press and hold the text to copy it.'); }); return; }
+  toast(ok ? 'Copied.' : 'Press and hold the text to copy it.');
+}
+
+/* ---------- events ---------- */
+var armed = null;
+document.addEventListener('click', function(ev){
+  var el = ev.target.closest('[data-a]'); if (!el) return;
+  var a = el.getAttribute('data-a');
+  switch (a) {
+    case 'tab': S.tab = el.getAttribute('data-t'); window.scrollTo(0, 0); render(); break;
+    case 'in': clockIn(); break;
+    case 'out': clockOut(); break;
+    case 'break': toggleBreak(); break;
+    case 'wk': {
+      var k = el.getAttribute('data-k'), d = Number(el.getAttribute('data-d'));
+      S[k] = d === 0 ? startOfWeek(Date.now()) : addDays(S[k], d * 7); render(); break;
+    }
+    case 'add-entry': entryDialog(S.aperson || S.uid, null); break;
+    case 'edit-entry': entryDialog(el.getAttribute('data-uid'), el.getAttribute('data-id')); break;
+    case 'add-shift': shiftDialog(null); break;
+    case 'edit-shift': shiftDialog(el.getAttribute('data-id')); break;
+    case 'export': exportDialog(); break;
+    case 'backup': backupDialog(); break;
+    case 'copy-ta': copyTa(); break;
+    case 'close': closeDialog(); break;
+    case 'del-entry': case 'del-shift': {
+      var key = a + el.getAttribute('data-id');
+      if (armed !== key) { armed = key; el.textContent = 'Tap again to delete'; setTimeout(function(){ if (armed === key) { armed = null; el.textContent = a === 'del-entry' ? 'Delete entry' : 'Delete shift'; } }, 4000); break; }
+      armed = null; closeDialog();
+      if (a === 'del-entry') { var u = el.getAttribute('data-uid'), i = el.getAttribute('data-id'); save(function(){ return shiftRef(u, i).delete(); }, 'Entry deleted.'); }
+      else { var rid = el.getAttribute('data-id'); save(function(){ return S.db.collection('roster').doc(rid).delete(); }, 'Shift deleted.'); }
+      break;
+    }
+  }
+});
+document.addEventListener('input', function(ev){
+  if (ev.target.id === 'note') { S.draftNote = ev.target.value; S.noteEdited = true; }
+});
+document.addEventListener('change', function(ev){
+  if (ev.target.id === 'note') saveNote(ev.target.value);
+  if (ev.target.id === 'person') { S.aperson = ev.target.value; render(); }
+});
+setInterval(tick, 1000);
+document.addEventListener('visibilitychange', function(){ if (!document.hidden) { tick(); } });
+
+/* ---------- start ---------- */
+function init(){
+  render();
+  if (!window.claude || typeof window.claude.use !== 'function') { S.error = 'nocloud'; render(); return; }
+  Promise.all([window.claude.use('user'), window.claude.use('db'), window.claude.use('downloads')]).then(function(r){
+    S.user = r[0]; S.db = r[1]; S.dl = r[2];
+    if (!S.db || !S.user) { S.error = 'nocloud'; render(); return null; }
+    return S.user.me().then(function(me){
+      if (!me.id) { S.error = 'noid'; render(); return null; }
+      S.uid = me.id; S.names[me.id] = me.name || ''; S.isAdmin = !!(me.isOwner || me.canEdit);
+      S.aperson = me.id;
+      return S.db.doc('staff/' + S.uid).get().then(function(snap){
+        if (!snap.exists) return S.db.doc('staff/' + S.uid).set({joinedAt: Date.now()});
+      }).catch(function(e){ console.warn('staff registration failed', e); }).then(function(){
+        S.ready = true;
+        watchShifts(S.uid); watchRoster();
+        if (S.isAdmin) watchStaff();
+        refreshNames();
+        render();
+      });
+    });
+  }).catch(function(e){ console.error(e); S.error = 'nocloud'; render(); });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>
+</body>
+</html>
